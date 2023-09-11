@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/kaiquecaires/go-import-movies/db"
@@ -12,6 +14,8 @@ import (
 )
 
 func main() {
+	startTime := time.Now()
+
 	err := godotenv.Load()
 
 	if err != nil {
@@ -40,6 +44,15 @@ func main() {
 		Pool: pgpool,
 	}
 
+	const numWorkers = 20
+	dataChan := make(chan []string, numWorkers)
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker(dataChan, &wg, writer)
+	}
+
 	for {
 		record, err := reader.Read()
 
@@ -52,17 +65,29 @@ func main() {
 			continue
 		}
 
-		movie, err := parser.ParseLine(record)
+		dataChan <- record
+	}
+
+	endTime := time.Now()
+	elapsedTime := endTime.Sub(startTime)
+
+	fmt.Println("Done. Elapsed Milliseconds: ", elapsedTime.Milliseconds())
+}
+
+func worker(dataChan <-chan []string, wg *sync.WaitGroup, writer db.Writer) {
+	defer wg.Done()
+
+	for data := range dataChan {
+		movie, err := parser.ParseLine(data)
 
 		if err != nil {
-			continue
+			return
 		}
 
 		err = writer.InsertMovie(movie)
 
 		if err != nil {
 			fmt.Println("Error inserting value:", err)
-			continue
 		}
 	}
 }
