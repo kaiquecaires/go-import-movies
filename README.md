@@ -1,6 +1,3 @@
-# Note
-I'm currently investigating this code as it contains bugs. For some reason, certain movies are not being imported.
-
 # Go Movie Importer
 
 This Go project is a challenge offered by DevGym, which you can find at [DevGym Challenge](https://app.devgym.com.br/challenges/ec36e7e2-6a2d-4406-98e1-3029f843b5c3).

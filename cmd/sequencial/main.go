@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
 	"time"
+
+	"github.com/kaiquecaires/go-import-movies/parser"
 
 	"github.com/joho/godotenv"
 	"github.com/kaiquecaires/go-import-movies/db"
-	"github.com/kaiquecaires/go-import-movies/parser"
 )
 
 func main() {
@@ -44,16 +44,11 @@ func main() {
 		Pool: pgpool,
 	}
 
-	const numWorkers = 20
-	dataChan := make(chan []string, numWorkers)
-	var wg sync.WaitGroup
-
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go worker(dataChan, &wg, writer)
-	}
+	i := -1
+	line := 0
 
 	for {
+		line++
 		record, err := reader.Read()
 
 		if err == io.EOF {
@@ -61,27 +56,20 @@ func main() {
 		}
 
 		if err != nil {
-			fmt.Println("Error reading CSV record:", err)
+			fmt.Println(line-1, "Error reading CSV record:", err)
 			continue
 		}
 
-		dataChan <- record
-	}
+		if i == -1 {
+			i++
+			continue
+		}
 
-	endTime := time.Now()
-	elapsedTime := endTime.Sub(startTime)
-
-	fmt.Println("Done. Elapsed Milliseconds: ", elapsedTime.Milliseconds())
-}
-
-func worker(dataChan <-chan []string, wg *sync.WaitGroup, writer db.Writer) {
-	defer wg.Done()
-
-	for data := range dataChan {
-		movie, err := parser.ParseLine(data)
+		movie, err := parser.ParseLine(record)
 
 		if err != nil {
-			return
+			fmt.Println(record, err)
+			continue
 		}
 
 		err = writer.InsertMovie(movie)
@@ -90,4 +78,9 @@ func worker(dataChan <-chan []string, wg *sync.WaitGroup, writer db.Writer) {
 			fmt.Println("Error inserting value:", err)
 		}
 	}
+
+	endTime := time.Now()
+	elapsedTime := endTime.Sub(startTime)
+
+	fmt.Println("Done. Elapsed Milliseconds: ", elapsedTime.Milliseconds())
 }
